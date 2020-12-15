@@ -1,25 +1,10 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# pylint: disable=W0613, C0116
-# type: ignore[union-attr]
-# This program is dedicated to the public domain under the CC0 license.
-
-"""
-First, a few callback functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Example of a bot-user conversation using ConversationHandler.
-Send /start to initiate the conversation.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
-
+#signup v5
+from database import db
 import logging
+import re
 from typing import Dict
 
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -29,6 +14,8 @@ from telegram.ext import (
     CallbackContext,
 )
 
+# Global Variable 
+email_validator = '^[a-z]+[.]2[0-9]{3}[@][a-z]{3,4}[.][s][m][u][.][e][d][u][.][s][g]' # For email validation
 
 # Enable logging
 logging.basicConfig(
@@ -50,33 +37,15 @@ userinfo = {
     "dietary" : "",
 }
 
-def print_userinfo(userinfo: Dict[str, str]) -> str:
-    output = list()
-
-    for key, value in userinfo.items():
-        output.append(f'{key} {value}')
-
-    return "\n".join(output).join(['\n', '\n'])
-
-def start(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text(
-        'Hi! Test SMUX bot here. I will collect your data for registration.\n\n'
-        'Send /signup to begin the sign up process and /cancel to stop the bot.',
-    )
-
-    return SIGNUP
-
 def signup(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text(
-        'Full name (according to matriculation):',
-    )  
+    context.bot.send_message(chat_id=update.effective_chat.id, text='Full name (according to matriculation):',)
     return NAME
 
 
 def name(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["name"] = update.message.text
-    logger.info("Matriculated name of %s: %s", userinfo['name'], update.message.text)
+    logger.info("User <%s> Matriculated name: %s", user.first_name, update.message.text)
     reply_keyboard = [['Male', 'Female']]
     update.message.reply_text(
         'Select gender:',
@@ -88,9 +57,9 @@ def name(update: Update, context: CallbackContext) -> int:
 def gender(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["gender"] = update.message.text
-    logger.info("Gender of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Gender: %s", user.first_name, update.message.text)
     update.message.reply_text(
-        'Matriculation number:',
+        'Matriculation number (e.g. 01234567):',
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -98,8 +67,15 @@ def gender(update: Update, context: CallbackContext) -> int:
 
 def matnum(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
+    for i in update.message.text:
+        if not i.isdigit() or len(update.message.text) != 8:
+            update.message.reply_text(
+                'Enter a valid 8-digit matriculation number (e.g. 01234567):',
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return MATNUM
     userinfo["matnum"] = update.message.text
-    logger.info("Matriculation number of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Matriculation number: %s", user.first_name, update.message.text)
     update.message.reply_text(
         'Contact number (e.g.: 91234567):',
         reply_markup=ReplyKeyboardRemove(),
@@ -110,7 +86,7 @@ def matnum(update: Update, context: CallbackContext) -> int:
 def hpnum(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["hpnum"] = update.message.text
-    logger.info("Contact number of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Contact number: %s", user.first_name, update.message.text)
     update.message.reply_text(
         'SMU email address (e.g. johntan.2020@sis.smu.edu.sg):',
         reply_markup=ReplyKeyboardRemove(),
@@ -121,8 +97,12 @@ def hpnum(update: Update, context: CallbackContext) -> int:
 def email(update: Update, context: CallbackContext) -> int:
     reply_keyboard = [['O+', 'O-'], ['AB+', 'AB-'], ['A+', 'A-'], ['B+', 'B-']]
     user = update.message.from_user
+    if not re.search(email_validator, update.message.text):
+        logger.info(False)
+        update.message.reply_text("Please enter a vaild SMU email address (e.g. johntan.2020@sis.smu.edu.sg):")
+        return EMAIL
     userinfo["email"] = update.message.text
-    logger.info("Email of  %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Email: %s", user.first_name, update.message.text)
     update.message.reply_text(
         'Blood Type:',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
@@ -133,7 +113,7 @@ def email(update: Update, context: CallbackContext) -> int:
 def bloodtype(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["bloodtype"] = update.message.text
-    logger.info("Blood type of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Blood type: %s", user.first_name, update.message.text)
     update.message.reply_text(
         "Enter your prevailing medical conditions, or '/skip' if you have none.",
         reply_markup=ReplyKeyboardRemove(),
@@ -144,7 +124,7 @@ def bloodtype(update: Update, context: CallbackContext) -> int:
 def medical(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["medical"] = update.message.text
-    logger.info("Medical situatiton of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Medical conditions: %s", user.first_name, update.message.text)
     update.message.reply_text(
         "Enter your dietary requirements, or '/skip' if you have none.",
         reply_markup=ReplyKeyboardRemove(),
@@ -155,7 +135,7 @@ def medical(update: Update, context: CallbackContext) -> int:
 def skip_medical(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["medical"] = "NA"
-    logger.info("%s has no medical conditions.", user.first_name)
+    logger.info("User <%s> has no medical conditions.", user.first_name)
     update.message.reply_text(
         "Enter your dietary requirements, or '/skip' if you have none.",
         reply_markup=ReplyKeyboardRemove(),
@@ -166,7 +146,7 @@ def skip_medical(update: Update, context: CallbackContext) -> int:
 def dietary(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["dietary"] = update.message.text
-    logger.info("Dietary requirements of %s: %s", user.first_name, update.message.text)
+    logger.info("User <%s> Dietary requirements: %s", user.first_name, update.message.text)
     update.message.reply_text("Please check if your information entered is correct.\n\n" + edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
 
     return EDIT
@@ -174,7 +154,7 @@ def dietary(update: Update, context: CallbackContext) -> int:
 def skip_dietary(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["dietary"] = "NA"
-    logger.info("%s has no dietary requirements", user.first_name)
+    logger.info("User <%s> has no dietary requirements", user.first_name)
     update.message.reply_text("Please check if your information entered is correct.\n\n" + edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
 
     return EDIT
@@ -191,6 +171,21 @@ def skip_dietary(update: Update, context: CallbackContext) -> int:
                             #                                      #
 #==============================================================================================#
 
+def edit_self_entry(update: Update, context: CallbackContext) -> int:
+    user = update.message.from_user
+    data = db.child("Users").child(user.id).child("Personal Particulars").child("Self").get().val()
+    userinfo["name"] = data["name"]
+    userinfo["gender"] = data["gender"]
+    userinfo["matnum"] = data["matnum"]
+    userinfo["hpnum"] = data["hpnum"]
+    userinfo["email"] = data["email"]
+    userinfo["bloodtype"] = data["bloodtype"]
+    userinfo["medical"] = data["medical"]
+    userinfo["dietary"] = data["dietary"]
+    logger.info("User <%s> Self data received.", user.first_name)
+    update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
+
+    return EDIT
 
 def edit_name_start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
@@ -202,7 +197,7 @@ def edit_name_start(update: Update, context: CallbackContext) -> int:
 def edit_name_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["name"] = update.message.text
-    logger.info("%s edited their matriculated name to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their matriculated name to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
@@ -219,7 +214,7 @@ def edit_gender_start(update: Update, context: CallbackContext) -> int:
 def edit_gender_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["gender"] = update.message.text
-    logger.info("%s edited their gender to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their gender to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
@@ -234,8 +229,15 @@ def edit_matnum_start(update: Update, context: CallbackContext) -> int:
 
 def edit_matnum_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
+    for i in update.message.text:
+        if not i.isdigit() or len(update.message.text) != 8:
+            update.message.reply_text(
+                'Enter a valid 8-digit matriculation number (e.g. 01234567):',
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return EDIT_MATNUM_END
     userinfo["matnum"] = update.message.text
-    logger.info("%s edited their matriculation number to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their matriculation number to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
@@ -251,7 +253,7 @@ def edit_hpnum_start(update: Update, context: CallbackContext) -> int:
 def edit_hpnum_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["hpnum"] = update.message.text
-    logger.info("%s edited their contact number to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their contact number to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
@@ -266,8 +268,12 @@ def edit_email_start(update: Update, context: CallbackContext) -> int:
 
 def edit_email_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
+    if not re.search(email_validator, update.message.text):
+        logger.info(False)
+        update.message.reply_text("Please enter a vaild SMU email address (e.g. johntan.2020@sis.smu.edu.sg):")
+        return EDIT_EMAIL_END
     userinfo["email"] = update.message.text
-    logger.info("%s edited their email to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their email to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
@@ -284,14 +290,14 @@ def edit_bloodtype_start(update: Update, context: CallbackContext) -> int:
 def edit_bloodtype_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["bloodtype"] = update.message.text
-    logger.info("%s edited their blood type to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their blood type to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
 
 def edit_medical_start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        'Update your medical conditions. If there are none, please enter "None".',
+        'Update your medical conditions. If there are none, please enter "NA".',
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -300,14 +306,14 @@ def edit_medical_start(update: Update, context: CallbackContext) -> int:
 def edit_medical_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["medical"] = update.message.text
-    logger.info("%s edited their medical condition to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their medical condition to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
 
 def edit_dietary_start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        'Update your dietary requirements. If there are none, please enter "None".',
+        'Update your dietary requirements. If there are none, please enter "NA".',
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -316,12 +322,12 @@ def edit_dietary_start(update: Update, context: CallbackContext) -> int:
 def edit_dietary_end(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     userinfo["dietary"] = update.message.text
-    logger.info("%s edited their dietary requirements to: %s", user.first_name, update.message.text)
+    logger.info("User <%s> edited their dietary requirements to: %s", user.first_name, update.message.text)
     update.message.reply_text(edituserinfo_message(), reply_markup=ReplyKeyboardRemove())
     
     return EDIT
 
-def edituserinfo_message() ->str:
+def edituserinfo_message() -> str:
     output = "Click the fields below to edit or /done if everything is correct.\n"
     output += f"/Name: {userinfo['name']}\n"
     output += f"/Gender: {userinfo['gender']}\n"
@@ -336,12 +342,44 @@ def edituserinfo_message() ->str:
 
 def done(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
-    logger.info("%s confirmed their details. Uploading to database.", user.first_name)
+    info = db.child("Users").child(user.id).child("Personal Particulars").child("NOK").get().val()
+
+    if info: #check if existing user
+        update.message.reply_text(
+            "Information updated.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    else: #new user
+        #segue into NOK for first time user
+        keyboard = [[InlineKeyboardButton("Continue", callback_data="callback_noknew")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(
+            "The following section requires your Next-of-Kin (NOK) details.",
+            reply_markup=reply_markup,
+        )
+
+    #odd/even calculator
+    if int(userinfo["matnum"]) % 2 == 0:
+        oddeven = "Even"
+    else:
+        oddeven = "Odd"
     #database push!
-    update.message.reply_text(
-        "Information confirmed.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    data_db_new = {
+        "name" : userinfo["name"],
+        "gender" : userinfo["gender"],
+        "matnum" : userinfo["matnum"],
+        "hpnum" : userinfo["hpnum"],
+        "email" : userinfo["email"],
+        "bloodtype" : userinfo["bloodtype"],
+        "medical" : userinfo["medical"],
+        "dietary" : userinfo["dietary"],
+        "telehandle" : user.username,
+        "oddeven": oddeven,
+    }
+
+    db.child("Users").child(user.id).child("Personal Particulars").child("Self").set(data_db_new)
+    logger.info("User <%s> confirmed their self details. Uploaded to database.", user.first_name)
+    #database done pushing
     #how to integrate back into main menu
 
     return ConversationHandler.END
@@ -353,55 +391,10 @@ def done(update: Update, context: CallbackContext) -> int:
 
 def cancel(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
-    logger.info("User %s canceled the conversation.", user.first_name)
+    logger.info("User <%s> canceled the conversation.", user.first_name)
     update.message.reply_text(
         'Bot successfully cancelled.', reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
 
-#==============================================================================================#
-
-
-conv_handler = ConversationHandler(
-    entry_points=[
-        CommandHandler('start', start),
-        CommandHandler('signup', signup)],
-    states={
-        SIGNUP:  [CommandHandler('signup', signup)],
-        NAME: [MessageHandler(Filters.text & ~Filters.command, name)],
-        GENDER: [MessageHandler(Filters.regex('^(Male|Female)$'), gender)],
-        MATNUM: [MessageHandler(Filters.text & ~Filters.command, matnum)],
-        HPNUM: [MessageHandler(Filters.text & ~Filters.command, hpnum)],
-        EMAIL: [MessageHandler(Filters.text & ~Filters.command, email)],
-        BLOODTYPE: [MessageHandler(Filters.regex('^(O\+|O\-|AB\+|AB\-|A\+|A\-|B\+|B\-)$'), bloodtype)],
-        MEDICAL: [
-            MessageHandler(Filters.text & ~Filters.command, medical),
-            CommandHandler('skip', skip_medical),
-        ],
-        DIETARY: [
-            MessageHandler(Filters.text & ~Filters.command, dietary),
-            CommandHandler('skip', skip_dietary),
-        ],
-        EDIT: [
-            CommandHandler('done', done),
-            CommandHandler('Name', edit_name_start),
-            CommandHandler('Gender', edit_gender_start),
-            CommandHandler('Matriculation_Number', edit_matnum_start),
-            CommandHandler('HP_Number', edit_hpnum_start),
-            CommandHandler('Email', edit_email_start),
-            CommandHandler('Blood_Type', edit_bloodtype_start),
-            CommandHandler('Medical_Conditions', edit_medical_start),
-            CommandHandler('Dietary_Restrictions', edit_dietary_start),
-        ],
-        EDIT_NAME_END: [MessageHandler(Filters.text & ~Filters.command, edit_name_end)],
-        EDIT_GENDER_END: [MessageHandler(Filters.regex('^(Male|Female)$'), edit_gender_end)],
-        EDIT_MATNUM_END: [MessageHandler(Filters.text & ~Filters.command, edit_matnum_end)],
-        EDIT_HPNUM_END: [MessageHandler(Filters.text & ~Filters.command, edit_hpnum_end)],
-        EDIT_EMAIL_END: [MessageHandler(Filters.text & ~Filters.command, edit_email_end)],
-        EDIT_BLOODTYPE_END: [MessageHandler(Filters.regex('^(O\+|O\-|AB\+|AB\-|A\+|A\-|B\+|B\-)$'), edit_bloodtype_end)],
-        EDIT_MEDICAL_END: [MessageHandler(Filters.text & ~Filters.command, edit_medical_end)],
-        EDIT_DIETARY_END: [MessageHandler(Filters.text & ~Filters.command, edit_dietary_end)],
-    },
-    fallbacks=[CommandHandler('cancel', cancel)],
-)
